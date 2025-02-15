@@ -55,4 +55,7 @@ ENV/
 reference/ 
 
 # Documentation
-docs/ 
+docs/
+
+# Logs
+logs/
