@@ -1,6 +1,6 @@
 from langchain_core.messages import HumanMessage
-from src.agents.state import AgentState, show_agent_reasoning
-from src.tools.news_crawler import get_stock_news, get_news_sentiment
+from agents.state import AgentState, show_agent_reasoning
+from tools.news_crawler import get_stock_news, get_news_sentiment
 import json
 from datetime import datetime, timedelta
 

@@ -4,8 +4,8 @@ import time
 import logging
 import matplotlib.pyplot as plt
 import pandas as pd
-from src.tools.api import get_price_data
-from src.main import run_hedge_fund
+from tools.api import get_price_data
+from main import run_hedge_fund
 import sys
 import matplotlib
 import os
