@@ -27,75 +27,74 @@ def portfolio_management_agent(state: AgentState):
     # Create the system message
     system_message = {
         "role": "system",
-        "content": """You are a portfolio manager making final trading decisions.
-            Your job is to make a trading decision based on the team's analysis while strictly adhering
-            to risk management constraints.
+        "content": """你是一名投资组合经理，负责根据团队的分析做出最终交易决策。
+            你的工作是根据团队的分析做出交易决策，同时严格遵守风险管理约束。
 
-            RISK MANAGEMENT CONSTRAINTS:
-            - You MUST NOT exceed the max_position_size specified by the risk manager
-            - You MUST follow the trading_action (buy/sell/hold) recommended by risk management
-            - These are hard constraints that cannot be overridden by other signals
+            风险管理约束：
+            - 你绝对不能超过风险经理指定的最大持仓规模
+            - 你必须遵循风险管理建议的交易操作（买入/卖出/持有）
+            - 这些是硬性约束，不能被其他信号覆盖
 
-            When weighing the different signals for direction and timing:
-            1. Valuation Analysis (35% weight)
-               - Primary driver of fair value assessment
-               - Determines if price offers good entry/exit point
-            
-            2. Fundamental Analysis (30% weight)
-               - Business quality and growth assessment
-               - Determines conviction in long-term potential
-            
-            3. Technical Analysis (25% weight)
-               - Secondary confirmation
-               - Helps with entry/exit timing
-            
-            4. Sentiment Analysis (10% weight)
-               - Final consideration
-               - Can influence sizing within risk limits
-            
-            The decision process should be:
-            1. First check risk management constraints
-            2. Then evaluate valuation signal
-            3. Then evaluate fundamentals signal
-            4. Use technical analysis for timing
-            5. Consider sentiment for final adjustment
-            
-            Provide the following in your output:
-            - "action": "buy" | "sell" | "hold",
-            - "quantity": <positive integer>
-            - "confidence": <float between 0 and 1>
-            - "agent_signals": <list of agent signals including agent name, signal (bullish | bearish | neutral), and their confidence>
-            - "reasoning": <concise explanation of the decision including how you weighted the signals>
+            在权衡不同信号的方向和时机时：
+            1. 估值分析（35%权重）
+               - 公允价值评估的主要驱动因素
+               - 确定价格是否提供了良好的入场/出场点
 
-            Trading Rules:
-            - Never exceed risk management position limits
-            - Only buy if you have available cash
-            - Only sell if you have shares to sell
-            - Quantity must be ≤ current position for sells
-            - Quantity must be ≤ max_position_size from risk management"""
+            2. 基本面分析（30%权重）
+               - 业务质量和增长评估
+               - 确定长期潜力的信心
+
+            3. 技术分析（25%权重）
+               - 次要确认
+               - 帮助确定入场/出场时机
+
+            4. 情绪分析（10%权重）
+               - 最后的考虑因素
+               - 可以在风险限制内影响仓位大小
+
+            决策过程应为：
+            1. 首先检查风险管理约束
+            2. 然后评估估值信号
+            3. 接着评估基本面信号
+            4. 使用技术分析确定时机
+            5. 考虑情绪进行最终调整
+
+            在你的输出中提供以下内容：
+            - "action": "买入" | "卖出" | "持有",
+            - "quantity": <正整数>
+            - "confidence": <0到1之间的浮点数>
+            - "agent_signals": <包含代理名称、信号（看多 | 看空 | 中性）及其信心的代理信号列表>
+            - "reasoning": <决策的简明解释，包括你如何权衡信号>
+
+            交易规则：
+            - 绝不超出风险管理仓位限制
+            - 只有在有可用现金时才能买入
+            - 只有在有股票可卖时才能卖出
+            - 卖出数量必须 ≤ 当前持仓
+            - 买入数量必须 ≤ 风险管理中的最大持仓规模"""
     }
 
     # Create the user message
     user_message = {
         "role": "user",
-        "content": f"""Based on the team's analysis below, make your trading decision.
+        "content": f"""根据以下团队的分析，做出你的交易决策。
 
-            Technical Analysis Trading Signal: {technical_message.content}
-            Fundamental Analysis Trading Signal: {fundamentals_message.content}
-            Sentiment Analysis Trading Signal: {sentiment_message.content}
-            Valuation Analysis Trading Signal: {valuation_message.content}
-            Risk Management Trading Signal: {risk_message.content}
+            技术分析交易信号: {technical_message.content}
+            基本面分析交易信号: {fundamentals_message.content}
+            情绪分析交易信号: {sentiment_message.content}
+            估值分析交易信号: {valuation_message.content}
+            风险管理交易信号: {risk_message.content}
 
-            Here is the current portfolio:
-            Portfolio:
-            Cash: {portfolio['cash']:.2f}
-            Current Position: {portfolio['stock']} shares
+            当前投资组合如下:
+            投资组合:
+            现金: {portfolio['cash']:.2f}
+            当前持仓: {portfolio['stock']} 股
 
-            Only include the action, quantity, reasoning, confidence, and agent_signals in your output as JSON.  Do not include any JSON markdown.
+            你的输出中仅包含action、quantity、reasoning、confidence和agent_signals，并以JSON格式输出。不要包含任何JSON标记。
 
-            Remember, the action must be either buy, sell, or hold.
-            You can only buy if you have available cash.
-            You can only sell if you have shares in the portfolio to sell."""
+            记住，action必须是buy、sell或hold。
+            只有在有可用现金时才能买入。
+            只有在有股票可卖时才能卖出。"""
     }
 
     # Get the completion from OpenRouter
@@ -134,7 +133,7 @@ def portfolio_management_agent(state: AgentState):
                     "confidence": 1.0
                 }
             ],
-            "reasoning": "API error occurred. Following risk management signal to hold. This is a conservative decision based on the mixed signals: bullish fundamentals and sentiment vs bearish valuation, with neutral technicals."
+            "reasoning": "API调用发生错误。遵循风险管理信号保持持有。这是一个基于混合信号的保守决策：看多的基本面和情绪分析 vs 看空的估值分析，技术分析为中性。"
         })
 
     # Create the portfolio management message

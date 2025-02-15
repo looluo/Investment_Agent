@@ -1,7 +1,7 @@
 import os
 import time
 import logging
-from google import genai
+import requests
 from dotenv import load_dotenv
 from dataclasses import dataclass
 import backoff
@@ -68,7 +68,6 @@ class ChatChoice:
 class ChatCompletion:
     choices: list[ChatChoice]
 
-
 # 获取项目根目录
 project_root = os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__))))
@@ -82,19 +81,24 @@ else:
     logger.warning(f"{ERROR_ICON} 未找到环境变量文件: {env_path}")
 
 # 验证环境变量
-api_key = os.getenv("GEMINI_API_KEY")
-model = os.getenv("GEMINI_MODEL")
+api_key = os.getenv("DEEPSEEK_API_KEY")
+model = os.getenv("DEEPSEEK_MODEL")
 
 if not api_key:
-    logger.error(f"{ERROR_ICON} 未找到 GEMINI_API_KEY 环境变量")
-    raise ValueError("GEMINI_API_KEY not found in environment variables")
+    logger.error(f"{ERROR_ICON} 未找到 DEEPSEEK_API_KEY 环境变量")
+    raise ValueError("DEEPSEEK_API_KEY not found in environment variables")
 if not model:
-    model = "gemini-1.5-flash"
+    model = "deepseek-chat"
     logger.info(f"{WAIT_ICON} 使用默认模型: {model}")
 
-# 初始化 Gemini 客户端
-client = genai.Client(api_key=api_key)
-logger.info(f"{SUCCESS_ICON} Gemini 客户端初始化成功")
+# DeepSeek API 配置
+DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+HEADERS = {
+    "Content-Type": "application/json",
+    "Authorization": f"Bearer {api_key}"
+}
+
+logger.info(f"{SUCCESS_ICON} DeepSeek 配置成功")
 
 
 @backoff.on_exception(
@@ -102,28 +106,40 @@ logger.info(f"{SUCCESS_ICON} Gemini 客户端初始化成功")
     (Exception),
     max_tries=5,
     max_time=300,
-    giveup=lambda e: "AFC is enabled" not in str(e)
+    giveup=lambda e: "rate limit" not in str(e).lower()
 )
-def generate_content_with_retry(model, contents, config=None):
+def generate_content_with_retry(messages, model=None, config=None):
     """带重试机制的内容生成函数"""
     try:
-        logger.info(f"{WAIT_ICON} 正在调用 Gemini API...")
-        logger.info(f"请求内容: {contents[:500]}..." if len(
-            str(contents)) > 500 else f"请求内容: {contents}")
+        logger.info(f"{WAIT_ICON} 正在调用 DeepSeek API...")
+        logger.info(f"请求内容: {messages[:500]}..." if len(
+            str(messages)) > 500 else f"请求内容: {messages}")
         logger.info(f"请求配置: {config}")
 
-        response = client.models.generate_content(
-            model=model,
-            contents=contents,
-            config=config
+        payload = {
+            "model": model or "deepseek-v3",
+            "messages": messages,
+            "temperature": config.get("temperature", 0.7) if config else 0.7,
+            "max_tokens": config.get("max_tokens", 2048) if config else 2048
+        }
+
+        response = requests.post(
+            DEEPSEEK_API_URL,
+            headers=HEADERS,
+            json=payload
         )
 
+        if response.status_code != 200:
+            raise Exception(f"API Error: {response.status_code} - {response.text}")
+
+        response_data = response.json()
         logger.info(f"{SUCCESS_ICON} API 调用成功")
-        logger.info(f"响应内容: {response.text[:500]}..." if len(
-            str(response.text)) > 500 else f"响应内容: {response.text}")
-        return response
+        logger.info(f"响应内容: {response_data['choices'][0]['message']['content'][:500]}..." 
+                   if len(response_data['choices'][0]['message']['content']) > 500 
+                   else f"响应内容: {response_data['choices'][0]['message']['content']}")
+        return response_data
     except Exception as e:
-        if "AFC is enabled" in str(e):
+        if "rate limit" in str(e).lower():
             logger.warning(f"{ERROR_ICON} 触发 API 限制，等待重试... 错误: {str(e)}")
             time.sleep(5)
             raise e
@@ -136,7 +152,7 @@ def get_chat_completion(messages, model=None, max_retries=3, initial_retry_delay
     """获取聊天完成结果，包含重试逻辑"""
     try:
         if model is None:
-            model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+            model = os.getenv("DEEPSEEK_MODEL", "deepseek-v3")
 
         logger.info(f"{WAIT_ICON} 使用模型: {model}")
         logger.debug(f"消息内容: {messages}")
@@ -144,29 +160,17 @@ def get_chat_completion(messages, model=None, max_retries=3, initial_retry_delay
         for attempt in range(max_retries):
             try:
                 # 转换消息格式
-                prompt = ""
-                system_instruction = None
-
+                formatted_messages = []
                 for message in messages:
-                    role = message["role"]
-                    content = message["content"]
-                    if role == "system":
-                        system_instruction = content
-                    elif role == "user":
-                        prompt += f"User: {content}\n"
-                    elif role == "assistant":
-                        prompt += f"Assistant: {content}\n"
-
-                # 准备配置
-                config = {}
-                if system_instruction:
-                    config['system_instruction'] = system_instruction
+                    formatted_messages.append({
+                        "role": message["role"],
+                        "content": message["content"]
+                    })
 
                 # 调用 API
                 response = generate_content_with_retry(
-                    model=model,
-                    contents=prompt.strip(),
-                    config=config
+                    messages=formatted_messages,
+                    model=model
                 )
 
                 if response is None:
@@ -180,11 +184,11 @@ def get_chat_completion(messages, model=None, max_retries=3, initial_retry_delay
                     return None
 
                 # 转换响应格式
-                chat_message = ChatMessage(content=response.text)
+                chat_message = ChatMessage(content=response['choices'][0]['message']['content'])
                 chat_choice = ChatChoice(message=chat_message)
                 completion = ChatCompletion(choices=[chat_choice])
 
-                logger.debug(f"API 原始响应: {response.text}")
+                logger.debug(f"API 原始响应: {response['choices'][0]['message']['content']}")
                 logger.info(f"{SUCCESS_ICON} 成功获取响应")
                 return completion.choices[0].message.content
 
